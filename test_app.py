@@ -25,8 +25,15 @@ class TestSite(unittest.TestCase):
     def enregistrer(self, *taches):
         t.sauvegarder_taches(list(taches), self.chemin)
 
-    def tache(self, id_tache=1, titre="Réviser", echeance="2999-12-31", etat=t.A_FAIRE):
-        return {"id": id_tache, "titre": titre, "echeance": echeance, "etat": etat}
+    def tache(self, id_tache=1, titre="Réviser", echeance="2999-12-31", etat=t.A_FAIRE, description="", rappel=None):
+        return {
+            "id": id_tache,
+            "titre": titre,
+            "description": description,
+            "echeance": echeance,
+            "rappel": rappel,
+            "etat": etat,
+        }
 
     def page(self):
         return self.client.get("/").get_data(as_text=True)
@@ -83,6 +90,75 @@ class TestSite(unittest.TestCase):
         html = self.page()
         self.assertNotIn("<script>alert(1)", html)
         self.assertIn("&lt;script&gt;", html)
+
+    def test_le_titre_de_la_page_invite_a_creer_des_taches(self):
+        self.assertIn("Créez vos tâches ici", self.page())
+
+    def test_ajouter_enregistre_la_description_et_le_rappel(self):
+        self.client.post(
+            "/ajouter",
+            data={
+                "titre": "Réviser",
+                "description": "Chapitres 3 et 4",
+                "echeance": "2999-12-31",
+                "rappel": "2999-12-30T08:00",
+            },
+        )
+        tache = t.charger_taches(self.chemin)[0]
+        self.assertEqual(tache["description"], "Chapitres 3 et 4")
+        self.assertEqual(tache["rappel"], "2999-12-30T08:00")
+
+        html = self.page()
+        self.assertIn("Chapitres 3 et 4", html)
+        self.assertIn("30/12/2999 à 08:00", html)
+
+    def test_rappel_invalide_refuse_et_saisie_conservee(self):
+        reponse = self.client.post(
+            "/ajouter",
+            data={"titre": "Réviser", "description": "Chapitre 3", "echeance": "2999-12-31", "rappel": "bientôt"},
+        )
+        html = reponse.get_data(as_text=True)
+        self.assertEqual(reponse.status_code, 400)
+        self.assertIn("Le rappel doit être", html)
+        self.assertIn(">Chapitre 3</textarea>", html)
+        self.assertEqual(t.charger_taches(self.chemin), [])
+
+    def test_rappel_atteint_affiche_lalerte_et_change_le_titre_de_longlet(self):
+        self.enregistrer(self.tache(rappel="2000-01-01T08:00"))
+        html = self.page()
+        self.assertIn('class="message rappels"', html)
+        self.assertIn("<title>(1) Rappel : Mes tâches</title>", html)
+        self.assertNotIn("data-rappel", html)
+
+    def test_rappel_a_venir_sans_alerte_mais_surveille_par_la_page(self):
+        self.enregistrer(self.tache(rappel="2999-12-30T08:00"))
+        html = self.page()
+        self.assertNotIn('class="message rappels"', html)
+        self.assertIn('data-rappel="2999-12-30T08:00"', html)
+
+    def test_tache_terminee_ne_declenche_plus_son_rappel(self):
+        self.enregistrer(self.tache(rappel="2000-01-01T08:00", etat=t.TERMINEE))
+        html = self.page()
+        self.assertNotIn('class="message rappels"', html)
+        self.assertNotIn("data-rappel", html)
+        self.assertNotIn("01/01/2000", html)
+
+    def test_le_html_dans_une_description_est_neutralise(self):
+        self.enregistrer(self.tache(description="<script>alert(1)</script>"))
+        self.assertNotIn("<script>alert(1)", self.page())
+
+    def test_le_bloc_notes_souvre_seulement_a_larrivee(self):
+        self.assertIn('class="couverture"', self.page())
+
+        reponse = self.client.post(
+            "/ajouter", data={"titre": "Réviser", "echeance": "2999-12-31"}
+        )
+        self.assertIn("ouvert=1", reponse.headers["Location"])
+        apres_action = self.client.get(reponse.headers["Location"]).get_data(as_text=True)
+        self.assertNotIn('class="couverture"', apres_action)
+
+        erreur = self.client.post("/ajouter", data={"titre": "", "echeance": ""})
+        self.assertNotIn('class="couverture"', erreur.get_data(as_text=True))
 
     def test_fichier_corrompu_affiche_un_message_sans_lecraser(self):
         self.chemin.write_text("{ pas du json", encoding="utf-8")

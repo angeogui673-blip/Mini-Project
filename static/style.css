@@ -1,4 +1,4 @@
-/* La page imite une feuille de cahier à grands carreaux.
+/* La page imite un bloc-notes à spirale posé sur un tableau d'école.
    Tout est calé sur --ligne pour que le texte reste posé sur les lignes. */
 :root {
   --ligne: 2rem;
@@ -10,6 +10,10 @@
   --encre: #1c2a7d;
   --stylo-rouge: #c4122f;
   --gris: #5a6178;
+  --tableau: #2c5a4c;
+  --couverture: #f2b90f;
+  --spirale: #8b92a3;
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   color-scheme: light;
 }
 
@@ -17,13 +21,55 @@
   box-sizing: border-box;
 }
 
+/* Sur html et body : la couverture qui bascule ne doit pas élargir la page. */
+html,
+body {
+  overflow-x: clip;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
+  padding: 2rem 1rem 3rem;
   color: var(--encre);
+  background: var(--tableau);
   font: 1rem/var(--ligne) "Atkinson Hyperlegible", system-ui, sans-serif;
+}
 
-  /* Trois images superposées : la marge rouge, les lignes fortes, les lignes fines. */
+p {
+  margin: 0;
+}
+
+/* --- Le bloc-notes --- */
+
+.bloc {
+  position: relative;
+  max-width: 58rem;
+  margin: 0 auto;
+  perspective: 1600px;
+}
+
+/* La spirale : une rangée de trous et de fils métalliques au-dessus de la feuille. */
+.bloc::before {
+  content: "";
+  position: absolute;
+  top: -0.75rem;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  height: 2.25rem;
+  pointer-events: none;
+  background-image:
+    linear-gradient(90deg, transparent calc(50% - 2px), var(--spirale) 0 calc(50% + 2px), transparent 0),
+    radial-gradient(circle at 50% 1.5rem, var(--tableau) 5px, transparent 6px);
+  background-size: 1.5rem 1.5rem, 1.5rem 100%;
+  background-repeat: round no-repeat; /* "round" évite un dernier trou coupé */
+}
+
+/* La feuille : trois images superposées pour la marge rouge, les lignes fortes et les lignes fines. */
+.feuille {
+  min-height: calc(100vh - 5rem);
+  padding: calc(var(--ligne) * 2) 1rem var(--ligne) 0;
   background-color: var(--papier);
   background-image:
     linear-gradient(var(--trait-marge), var(--trait-marge)),
@@ -32,14 +78,57 @@ body {
   background-size: 2px 100%, 100% var(--ligne), 100% calc(var(--ligne) / 4);
   background-position: var(--marge) 0, 0 1.45rem, 0 1.45rem;
   background-repeat: no-repeat, repeat, repeat;
+  border-radius: 4px;
 }
 
-main {
-  max-width: 60rem;
-  padding: var(--ligne) 1rem calc(var(--ligne) * 2) 0;
+/* --- L'ouverture : la couverture bascule vers le haut, autour de la spirale --- */
+
+.couverture {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 25vh;
+  pointer-events: none;
+  background: var(--couverture);
+  border-radius: 4px;
+  transform-origin: top center;
+  animation:
+    ouvrir-couverture 700ms var(--ease-in-out) 400ms both,
+    effacer-couverture 200ms linear 850ms both;
 }
 
-/* Tout ce qui n'est pas une tâche s'écrit à droite de la marge. */
+.etiquette {
+  padding: 1rem 2rem;
+  font: 1.75rem/var(--ligne) "Playwrite FR Moderne", cursive;
+  background: var(--papier);
+  border-radius: 2px;
+}
+
+@keyframes ouvrir-couverture {
+  to {
+    transform: rotateX(120deg);
+  }
+}
+
+@keyframes effacer-couverture {
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+/* Si l'utilisateur préfère moins de mouvement, la couverture s'efface sans basculer. */
+@media (prefers-reduced-motion: reduce) {
+  .couverture {
+    animation: effacer-couverture 200ms linear 200ms both;
+  }
+}
+
+/* --- Ce qui n'est pas une tâche s'écrit à droite de la marge --- */
+
 h1,
 .ajout,
 .message {
@@ -50,11 +139,8 @@ h1 {
   font: 400 2rem/calc(var(--ligne) * 2) "Playwrite FR Moderne", cursive;
 }
 
-.message {
-  margin-bottom: 0;
-}
-
-.erreur {
+.erreur,
+.rappels {
   color: var(--stylo-rouge);
   font-weight: 700;
 }
@@ -68,8 +154,12 @@ h1 {
   column-gap: 1rem;
 }
 
-.champ-titre {
-  flex: 1 1 16rem;
+.champ {
+  flex: 1 1 12rem;
+}
+
+.champ-large {
+  flex-basis: 100%;
 }
 
 label {
@@ -78,24 +168,39 @@ label {
 }
 
 input,
+textarea,
 button {
-  height: var(--ligne);
   font: inherit;
-  line-height: 1;
 }
 
-input {
+input,
+textarea {
+  display: block;
   width: 100%;
   padding: 0 0.5rem;
   color: inherit;
-  background: #fff;
-  border: 1px solid var(--encre);
+  background: transparent;
+  border: 0;
+  outline: 1px solid var(--encre);
+  outline-offset: -1px;
   border-radius: 2px;
 }
 
+input {
+  height: var(--ligne);
+}
+
+textarea {
+  height: calc(var(--ligne) * 2);
+  line-height: var(--ligne);
+  resize: vertical;
+}
+
 button {
+  height: var(--ligne);
   padding: 0 0.5rem;
   color: var(--encre);
+  line-height: 1;
   background: none;
   border: 0;
   border-radius: 2px;
@@ -125,12 +230,13 @@ button.danger {
 }
 
 input:focus-visible,
+textarea:focus-visible,
 button:focus-visible {
   outline: 2px solid var(--encre);
   outline-offset: 2px;
 }
 
-/* --- Liste des tâches : la date dans la marge, le reste sur la ligne --- */
+/* --- Liste des tâches : la date dans la marge, le reste sur les lignes --- */
 
 .taches {
   margin: 0;
@@ -144,6 +250,10 @@ button:focus-visible {
   column-gap: 1rem;
 }
 
+.taches li + li {
+  margin-top: var(--ligne);
+}
+
 .date {
   padding-right: 0.5rem;
   text-align: right;
@@ -152,6 +262,23 @@ button:focus-visible {
 .texte {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+.titre {
+  font-weight: 700;
+}
+
+.description {
+  white-space: pre-line;
+}
+
+.rappel {
+  color: var(--gris);
+}
+
+.rappel.atteint {
+  color: var(--stylo-rouge);
+  font-weight: 700;
 }
 
 .actions {
@@ -176,23 +303,33 @@ button:focus-visible {
 
 /* Une tâche terminée est barrée. */
 .terminee .date,
-.terminee .texte {
+.terminee .texte,
+.terminee .titre {
   color: var(--gris);
 }
 
 .terminee .titre {
+  font-weight: 400;
   text-decoration: line-through;
 }
 
-/* --- Téléphone : marge plus étroite, actions sous le titre --- */
+/* --- Téléphone : marge plus étroite, actions sous le texte --- */
 
 @media (max-width: 40rem) {
   :root {
-    --marge: 5.5rem;
+    --marge: 5rem;
+  }
+
+  body {
+    padding-inline: 0.5rem;
   }
 
   h1 {
-    font-size: 1.5rem;
+    font-size: 1.25rem;
+  }
+
+  .etiquette {
+    font-size: 1.25rem;
   }
 
   /* 0,5 ligne au-dessus du bouton + 1,5 ligne en dessous : on retombe sur la réglure. */
@@ -200,8 +337,8 @@ button:focus-visible {
     margin-bottom: calc(var(--ligne) * 1.5);
   }
 
-  .ajout .champ {
-    flex: 1 1 100%;
+  .champ {
+    flex-basis: 100%;
   }
 
   .ajout .principal {
@@ -214,7 +351,7 @@ button:focus-visible {
   }
 
   .date {
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     padding-right: 0.25rem;
   }
 

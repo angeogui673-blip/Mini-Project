@@ -5,7 +5,7 @@ et le site utilise le même fichier taches.json que le menu en ligne de commande
 """
 
 import json
-from datetime import date
+from datetime import date, datetime
 
 from flask import Flask, abort, redirect, render_template, request, url_for
 
@@ -23,39 +23,58 @@ def sauvegarder(taches):
     t.sauvegarder_taches(taches, app.config["FICHIER_TACHES"])
 
 
-def afficher_page(taches, erreur=None, titre="", echeance="", statut=200):
+def retour_accueil():
+    """Revient à la page après une action, sans rejouer l'ouverture du bloc-notes."""
+    return redirect(url_for("accueil", ouvert=1))
+
+
+def preparer_ligne(tache):
+    """Ajoute à une tâche ce que le gabarit HTML doit afficher."""
+    rappel = tache["rappel"]
+    return {
+        **tache,
+        "terminee": tache["etat"] == t.TERMINEE,
+        "en_retard": t.est_en_retard(tache),
+        "rappel_atteint": t.rappel_est_atteint(tache),
+        "date_affichee": date.fromisoformat(tache["echeance"]).strftime("%d/%m/%Y"),
+        "rappel_affiche": datetime.fromisoformat(rappel).strftime("%d/%m/%Y à %H:%M") if rappel else "",
+    }
+
+
+def afficher_page(taches, erreur=None, saisie=None, statut=200, ouverture=False):
     """Prépare les tâches pour le gabarit HTML et retourne la page."""
-    lignes = [
-        {
-            **tache,
-            "terminee": tache["etat"] == t.TERMINEE,
-            "en_retard": t.est_en_retard(tache),
-            "date_affichee": date.fromisoformat(tache["echeance"]).strftime("%d/%m/%Y"),
-        }
-        for tache in t.lister_taches(taches)
-    ]
+    lignes = [preparer_ligne(tache) for tache in t.lister_taches(taches)]
     page = render_template(
-        "index.html", taches=lignes, erreur=erreur, titre=titre, echeance=echeance
+        "index.html",
+        taches=lignes,
+        rappels=[ligne for ligne in lignes if ligne["rappel_atteint"]],
+        erreur=erreur,
+        saisie=saisie or {},
+        ouverture=ouverture,
     )
     return page, statut
 
 
 @app.route("/")
 def accueil():
-    return afficher_page(charger())
+    return afficher_page(charger(), ouverture="ouvert" not in request.args)
 
 
 @app.post("/ajouter")
 def ajouter():
     taches = charger()
-    titre = request.form.get("titre", "")
-    echeance = request.form.get("echeance", "")
+    saisie = {
+        champ: request.form.get(champ, "")
+        for champ in ("titre", "description", "echeance", "rappel")
+    }
     try:
-        t.ajouter_tache(taches, titre, echeance)
+        t.ajouter_tache(
+            taches, saisie["titre"], saisie["echeance"], saisie["description"], saisie["rappel"]
+        )
     except ValueError as erreur:
-        return afficher_page(taches, str(erreur), titre, echeance, statut=400)
+        return afficher_page(taches, str(erreur), saisie, statut=400)
     sauvegarder(taches)
-    return redirect(url_for("accueil"))
+    return retour_accueil()
 
 
 @app.post("/terminer/<int:id_tache>")
@@ -64,7 +83,7 @@ def terminer(id_tache):
     if not t.terminer_tache(taches, id_tache):
         abort(404)
     sauvegarder(taches)
-    return redirect(url_for("accueil"))
+    return retour_accueil()
 
 
 @app.post("/supprimer/<int:id_tache>")
@@ -73,7 +92,7 @@ def supprimer(id_tache):
     if not t.supprimer_tache(taches, id_tache):
         abort(404)
     sauvegarder(taches)
-    return redirect(url_for("accueil"))
+    return retour_accueil()
 
 
 @app.errorhandler(json.JSONDecodeError)

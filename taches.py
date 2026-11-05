@@ -1,11 +1,11 @@
 """Gestionnaire de tâches en ligne de commande.
 
-Une tâche est un dictionnaire : {"id", "titre", "echeance", "etat"}.
+Une tâche est un dictionnaire : {"id", "titre", "description", "echeance", "rappel", "etat"}.
 La liste des tâches est sauvegardée dans un fichier JSON.
 """
 
 import json
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 FICHIER_TACHES = Path(__file__).parent / "taches.json"
@@ -19,9 +19,15 @@ def charger_taches(chemin=FICHIER_TACHES):
     """Retourne la liste des tâches du fichier, ou une liste vide s'il n'existe pas."""
     try:
         with open(chemin, encoding="utf-8") as fichier:
-            return json.load(fichier)
+            taches = json.load(fichier)
     except FileNotFoundError:
         return []
+
+    # Les tâches créées avant l'ajout de ces champs ne les ont pas encore.
+    for tache in taches:
+        tache.setdefault("description", "")
+        tache.setdefault("rappel", None)
+    return taches
 
 
 def sauvegarder_taches(taches, chemin=FICHIER_TACHES):
@@ -32,11 +38,23 @@ def sauvegarder_taches(taches, chemin=FICHIER_TACHES):
 
 # --- Les actions sur les tâches ---
 
-def ajouter_tache(taches, titre, echeance):
+def lire_rappel(texte):
+    """Retourne le rappel au format AAAA-MM-JJTHH:MM, ou None si rien n'est saisi."""
+    texte = texte.strip()
+    if not texte:
+        return None
+    try:
+        moment = datetime.fromisoformat(texte)
+    except ValueError:
+        raise ValueError("Le rappel doit être une date et une heure valides au format AAAA-MM-JJ HH:MM.")
+    return moment.replace(tzinfo=None).isoformat(timespec="minutes")
+
+
+def ajouter_tache(taches, titre, echeance, description="", rappel=""):
     """Ajoute une tâche à la liste et la retourne.
 
-    Lève ValueError si le titre est vide ou si l'échéance n'est pas une vraie
-    date au format AAAA-MM-JJ.
+    La description et le rappel sont facultatifs. Lève ValueError si le titre
+    est vide, ou si l'échéance ou le rappel ne sont pas valides.
     """
     titre = titre.strip()
     if not titre:
@@ -47,8 +65,17 @@ def ajouter_tache(taches, titre, echeance):
     except ValueError:
         raise ValueError("L'échéance doit être une date valide au format AAAA-MM-JJ.")
 
+    rappel = lire_rappel(rappel)
+
     nouvel_id = max((tache["id"] for tache in taches), default=0) + 1
-    tache = {"id": nouvel_id, "titre": titre, "echeance": echeance, "etat": A_FAIRE}
+    tache = {
+        "id": nouvel_id,
+        "titre": titre,
+        "description": description.strip(),
+        "echeance": echeance,
+        "rappel": rappel,
+        "etat": A_FAIRE,
+    }
     taches.append(tache)
     return tache
 
@@ -90,13 +117,26 @@ def est_en_retard(tache, aujourdhui=None):
     return tache["etat"] != TERMINEE and date.fromisoformat(tache["echeance"]) < aujourdhui
 
 
-def formater_tache(tache, aujourdhui=None):
-    """Retourne la ligne de texte qui affiche une tâche, avec une alerte si elle est en retard."""
+def rappel_est_atteint(tache, maintenant=None):
+    """Retourne True si la tâche n'est pas terminée et que l'heure de son rappel est arrivée."""
+    if tache["rappel"] is None or tache["etat"] == TERMINEE:
+        return False
+    return datetime.fromisoformat(tache["rappel"]) <= (maintenant or datetime.now())
+
+
+def formater_tache(tache, aujourdhui=None, maintenant=None):
+    """Retourne le texte qui affiche une tâche : une ligne, puis sa description et son rappel."""
     case = "[x]" if tache["etat"] == TERMINEE else "[ ]"
     ligne = f"{tache['id']:>3}. {case} {tache['echeance']}  {tache['titre']}"
 
     if est_en_retard(tache, aujourdhui):
         ligne += "  (EN RETARD)"
+    if tache["description"]:
+        ligne += f"\n       {tache['description']}"
+    if tache["rappel"] and tache["etat"] != TERMINEE:
+        ligne += "\n       Rappel : " + tache["rappel"].replace("T", " à ")
+        if rappel_est_atteint(tache, maintenant):
+            ligne += "  (RAPPEL ATTEINT)"
     return ligne
 
 
@@ -110,6 +150,13 @@ def afficher_taches(taches):
         print(formater_tache(tache))
 
 
+def afficher_rappels(taches):
+    """Affiche les tâches dont l'heure du rappel est arrivée."""
+    for tache in lister_taches(taches):
+        if rappel_est_atteint(tache):
+            print(f"Rappel : {tache['titre']} (échéance {tache['echeance']})")
+
+
 def lire_id():
     """Demande un numéro de tâche. Retourne None si la saisie n'est pas un nombre."""
     try:
@@ -121,15 +168,19 @@ def lire_id():
 
 def boucle_menu(taches):
     """Affiche le menu et exécute les actions jusqu'à ce que l'utilisateur quitte."""
+    afficher_rappels(taches)
+
     while True:
         print("\n1. Ajouter  2. Lister  3. Terminer  4. Supprimer  5. Quitter")
         choix = input("Votre choix : ").strip()
 
         if choix == "1":
             titre = input("Titre : ")
+            description = input("Description (Entrée pour passer) : ")
             echeance = input("Échéance (AAAA-MM-JJ) : ")
+            rappel = input("Rappel (AAAA-MM-JJ HH:MM, Entrée pour passer) : ")
             try:
-                tache = ajouter_tache(taches, titre, echeance)
+                tache = ajouter_tache(taches, titre, echeance, description, rappel)
             except ValueError as erreur:
                 print(erreur)
             else:

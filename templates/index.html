@@ -3,57 +3,89 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Mes tâches</title>
+  <title>{% if rappels %}({{ rappels|length }}) Rappel : {% endif %}Mes tâches</title>
   <link rel="icon" href="data:,">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Playwrite+FR+Moderne&display=swap">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="{{ url_for('static', filename='rappels.js') }}" defer></script>
 </head>
 <body>
-  <main>
-    <h1>Mes tâches</h1>
-
-    <form class="ajout" method="post" action="{{ url_for('ajouter') }}">
-      <div class="champ champ-titre">
-        <label for="titre">Titre</label>
-        <input id="titre" name="titre" value="{{ titre }}" required>
+  <div class="bloc">
+    {% if ouverture %}
+      <div class="couverture" aria-hidden="true">
+        <span class="etiquette">Mes tâches</span>
       </div>
-      <div class="champ">
-        <label for="echeance">Échéance</label>
-        <input id="echeance" name="echeance" type="date" value="{{ echeance }}" required>
-      </div>
-      <button class="principal">Ajouter</button>
-    </form>
-
-    {% if erreur %}
-      <p class="message erreur" role="alert">{{ erreur }}</p>
-    {% elif not taches %}
-      <p class="message">Aucune tâche pour le moment. Ajoutez la première avec le formulaire.</p>
     {% endif %}
 
-    <ul class="taches">
-      {% for tache in taches %}
-        <li class="{{ 'terminee' if tache.terminee }} {{ 'en-retard' if tache.en_retard }}">
-          <span class="date">{{ tache.date_affichee }}</span>
-          <div class="texte">
-            <span class="titre">{{ tache.titre }}</span>
-            {% if tache.en_retard %}<span class="etat">En retard</span>{% endif %}
-            {% if tache.terminee %}<span class="etat">Terminée</span>{% endif %}
-          </div>
-          <div class="actions">
-            {% if not tache.terminee %}
-              <form method="post" action="{{ url_for('terminer', id_tache=tache.id) }}">
-                <button aria-label="Terminer : {{ tache.titre }}">Terminer</button>
+    <main class="feuille">
+      <h1>Créez vos tâches ici</h1>
+
+      {% if rappels %}
+        <div class="message rappels" role="status">
+          {% for tache in rappels %}
+            <p>Rappel : {{ tache.titre }}, échéance le {{ tache.date_affichee }}</p>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <form class="ajout" method="post" action="{{ url_for('ajouter') }}">
+        <div class="champ champ-large">
+          <label for="titre">Titre</label>
+          <input id="titre" name="titre" value="{{ saisie.titre }}" required>
+        </div>
+        <div class="champ champ-large">
+          <label for="description">Description</label>
+          <textarea id="description" name="description" rows="2">{{ saisie.description }}</textarea>
+        </div>
+        <div class="champ">
+          <label for="echeance">Échéance</label>
+          <input id="echeance" name="echeance" type="date" value="{{ saisie.echeance }}" required>
+        </div>
+        <div class="champ">
+          <label for="rappel">Rappel</label>
+          <input id="rappel" name="rappel" type="datetime-local" value="{{ saisie.rappel }}">
+        </div>
+        <button class="principal">Ajouter</button>
+      </form>
+
+      {% if erreur %}
+        <p class="message erreur" role="alert">{{ erreur }}</p>
+      {% elif not taches %}
+        <p class="message">Aucune tâche pour le moment. Ajoutez la première avec le formulaire.</p>
+      {% endif %}
+
+      <ul class="taches">
+        {% for tache in taches %}
+          <li class="{{ 'terminee' if tache.terminee }} {{ 'en-retard' if tache.en_retard }}"
+              {% if tache.rappel and not tache.terminee and not tache.rappel_atteint %}data-rappel="{{ tache.rappel }}"{% endif %}>
+            <span class="date">{{ tache.date_affichee }}</span>
+            <div class="texte">
+              <span class="titre">{{ tache.titre }}</span>
+              {% if tache.en_retard %}<span class="etat">En retard</span>{% endif %}
+              {% if tache.terminee %}<span class="etat">Terminée</span>{% endif %}
+              {% if tache.description %}<p class="description">{{ tache.description }}</p>{% endif %}
+              {% if tache.rappel and not tache.terminee %}
+                <p class="rappel {{ 'atteint' if tache.rappel_atteint }}">
+                  {{ 'Rappel atteint' if tache.rappel_atteint else 'Rappel' }} : {{ tache.rappel_affiche }}
+                </p>
+              {% endif %}
+            </div>
+            <div class="actions">
+              {% if not tache.terminee %}
+                <form method="post" action="{{ url_for('terminer', id_tache=tache.id) }}">
+                  <button aria-label="Terminer : {{ tache.titre }}">Terminer</button>
+                </form>
+              {% endif %}
+              <form method="post" action="{{ url_for('supprimer', id_tache=tache.id) }}">
+                <button class="danger" aria-label="Supprimer : {{ tache.titre }}">Supprimer</button>
               </form>
-            {% endif %}
-            <form method="post" action="{{ url_for('supprimer', id_tache=tache.id) }}">
-              <button class="danger" aria-label="Supprimer : {{ tache.titre }}">Supprimer</button>
-            </form>
-          </div>
-        </li>
-      {% endfor %}
-    </ul>
-  </main>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    </main>
+  </div>
 </body>
 </html>
