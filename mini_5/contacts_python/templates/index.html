@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="theme-color" content="#FFFFFF">
+  <title>Mes contacts</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="{{ url_for('static', filename='telephone.css') }}">
+</head>
+<body>
+  <div class="telephone">
+    <div class="ecran">
+      <div class="barre-etat" aria-hidden="true">
+        <span id="heure"></span>
+        <span class="camera"></span>
+        <span class="icones">
+          <svg viewBox="0 0 18 12" width="18" height="12"><path d="M1 11h2V8H1zm4 0h2V6H5zm4 0h2V3H9zm4 0h2V1h-2z" fill="currentColor"/></svg>
+          <svg viewBox="0 0 26 12" width="26" height="12"><rect x=".5" y=".5" width="22" height="11" rx="3" fill="none" stroke="currentColor"/><rect x="2" y="2" width="16" height="8" rx="1.5" fill="currentColor"/><rect x="24" y="4" width="2" height="4" rx="1" fill="currentColor"/></svg>
+        </span>
+      </div>
+
+      <div class="vues">
+        <main id="vue-liste" class="vue">
+          <header class="entete">
+            <div>
+              <h1>Contacts</h1>
+              <p id="compteur" class="compteur"></p>
+            </div>
+            <button id="bouton-nouveau" class="bouton-rond" type="button" aria-label="Nouveau contact">
+              <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+            </button>
+          </header>
+
+          <div class="recherche">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="m16.5 16.5 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            <input id="champ-recherche" type="search" placeholder="Nom ou numéro" aria-label="Rechercher un nom ou un numéro" autocomplete="off">
+          </div>
+
+          <div class="corps-liste">
+            <div id="liste" class="liste"></div>
+            <nav id="index" class="index" aria-label="Aller à une lettre"></nav>
+          </div>
+        </main>
+
+        <section id="vue-fiche" class="vue fiche" aria-labelledby="fiche-nom" inert>
+          <button id="bouton-retour" class="retour" type="button">
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="m15 5-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Contacts
+          </button>
+          <div class="identite">
+            <div id="fiche-avatar" class="avatar avatar-grand" aria-hidden="true"></div>
+            <h2 id="fiche-nom"></h2>
+            <p id="fiche-telephone" class="numero"></p>
+          </div>
+          <div class="actions">
+            <a id="lien-appeler" class="action action-principale">
+              <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6.6 2.8 9.4 7a1.5 1.5 0 0 1-.3 2l-1.4 1.1a12 12 0 0 0 6.2 6.2l1.1-1.4a1.5 1.5 0 0 1 2-.3l4.2 2.8a1.5 1.5 0 0 1 .4 2.1c-1 1.5-2.5 2.5-4.2 2.3C9.4 20.900 3.100 14.600 2.200 6.600 2 4.900 3 3.400 4.500 2.400a1.500 1.500 0 0 1 2.100.4Z" fill="currentColor"/></svg>
+              Appeler
+            </a>
+            <a id="lien-message" class="action">
+              <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 4v-4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" fill="currentColor"/></svg>
+              Message
+            </a>
+          </div>
+          <button id="bouton-supprimer" class="lien-danger" type="button">Supprimer ce contact</button>
+        </section>
+
+        <div id="voile" class="voile"></div>
+
+        <section id="feuille-ajout" class="feuille" role="dialog" aria-modal="true" aria-labelledby="titre-ajout" inert>
+          <form id="formulaire" novalidate>
+            <div class="feuille-haut">
+              <button id="bouton-annuler" class="lien" type="button">Annuler</button>
+              <h2 id="titre-ajout">Nouveau contact</h2>
+              <button id="bouton-enregistrer" class="lien lien-fort" type="submit">Enregistrer</button>
+            </div>
+            <label for="champ-nom">Nom</label>
+            <input id="champ-nom" name="nom" type="text" autocomplete="off">
+            <label for="champ-telephone">Téléphone</label>
+            <input id="champ-telephone" name="telephone" type="tel" inputmode="tel" autocomplete="off">
+            <p id="erreur-ajout" class="erreur" role="alert"></p>
+          </form>
+        </section>
+
+        <section id="feuille-suppression" class="feuille" role="alertdialog" aria-modal="true" aria-labelledby="titre-suppression" aria-describedby="texte-suppression" inert>
+          <h2 id="titre-suppression">Supprimer ce contact ?</h2>
+          <p id="texte-suppression" class="texte-suppression"></p>
+          <p id="erreur-suppression" class="erreur" role="alert"></p>
+          <button id="bouton-confirmer" class="bouton-plein bouton-danger" type="button">Supprimer</button>
+          <button id="bouton-garder" class="bouton-plein" type="button">Garder</button>
+        </section>
+      </div>
+
+      <div class="barre-accueil" aria-hidden="true"></div>
+    </div>
+  </div>
+  <noscript><p class="sans-script">Cette page a besoin de JavaScript pour afficher vos contacts.</p></noscript>
+  <script src="{{ url_for('static', filename='telephone.js') }}"></script>
+</body>
+</html>
