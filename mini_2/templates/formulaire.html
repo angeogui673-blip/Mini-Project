@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% set nom_page = "Modifier le livre" if modification else "Ajouter un livre" %}
+
+{% block titre %}{{ nom_page }} : Catalogue de la bibliothèque{% endblock %}
+
+{% block bouton_ajout %}{% endblock %}
+
+{% block contenu %}
+  <form class="fiche formulaire" method="post">
+    <h1>{{ nom_page }}</h1>
+
+    {% if erreur %}
+      <p class="erreur" role="alert">{{ erreur }}</p>
+    {% endif %}
+
+    <label for="titre">Titre</label>
+    <input id="titre" name="titre" value="{{ livre.titre }}" required>
+
+    <label for="auteur">Auteur</label>
+    <input id="auteur" name="auteur" value="{{ livre.auteur }}" required>
+
+    <label for="annee">Année de publication</label>
+    <input id="annee" name="annee" type="number" min="1" value="{{ livre.annee }}" required>
+
+    <label for="categorie_id">Catégorie</label>
+    <select id="categorie_id" name="categorie_id" required>
+      <option value="">Choisir une catégorie</option>
+      {% for categorie in categories %}
+        <option value="{{ categorie.id }}"
+                {{ 'selected' if categorie.id|string == livre.categorie_id|string }}>{{ categorie.nom }}</option>
+      {% endfor %}
+    </select>
+    <p class="note">La cote du livre est calculée à partir de la catégorie et du nom de l'auteur.</p>
+
+    <label for="resume">Résumé</label>
+    <textarea id="resume" name="resume" rows="3">{{ livre.resume }}</textarea>
+
+    <label class="case">
+      <input name="disponible" type="checkbox" {{ 'checked' if livre.disponible }}>
+      Disponible à l'emprunt
+    </label>
+
+    <div class="bas-formulaire">
+      <button class="bouton">{{ "Enregistrer" if modification else "Ajouter" }}</button>
+      <a href="{{ url_for('accueil') }}">Annuler</a>
+    </div>
+  </form>
+{% endblock %}
