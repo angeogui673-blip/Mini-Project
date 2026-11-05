@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block couleur_barre %}#163A47{% endblock %}
+{% block titre %}Téléphone verrouillé{% endblock %}
+{% block classe_page %}page-verrou{% endblock %}
+
+{% block contenu %}
+<main class="verrou">
+  <div class="verrou-heure">
+    <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M7 10V7a5 5 0 0 1 10 0v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="4.5" y="10" width="15" height="11" rx="2.5" fill="currentColor"/></svg>
+    <p class="grande-heure" data-heure></p>
+    <p class="date" data-date></p>
+  </div>
+
+  <form class="verrou-formulaire" method="post" action="{{ url_for('connexion') }}">
+    <h1>Téléphone verrouillé</h1>
+    <label for="mot-de-passe">Mot de passe</label>
+    <input id="mot-de-passe" name="mot_de_passe" type="password" autocomplete="current-password" autofocus required>
+    {% if erreur %}<p class="erreur-verrou" role="alert">{{ erreur }}</p>{% endif %}
+    <button class="bouton-deverrouiller" type="submit">Déverrouiller</button>
+  </form>
+</main>
+{% endblock %}

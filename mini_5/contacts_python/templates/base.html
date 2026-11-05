@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="theme-color" content="{% block couleur_barre %}#FFFFFF{% endblock %}">
+  <title>{% block titre %}Mes contacts{% endblock %}</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="{{ url_for('static', filename='telephone.css') }}">
+</head>
+<body class="{% block classe_page %}{% endblock %}">
+  <div class="telephone">
+    <div class="ecran">
+      <div class="barre-etat" aria-hidden="true">
+        <span data-heure></span>
+        <span class="camera"></span>
+        <span class="icones">
+          <svg viewBox="0 0 18 12" width="18" height="12"><path d="M1 11h2V8H1zm4 0h2V6H5zm4 0h2V3H9zm4 0h2V1h-2z" fill="currentColor"/></svg>
+          <svg viewBox="0 0 26 12" width="26" height="12"><rect x=".5" y=".5" width="22" height="11" rx="3" fill="none" stroke="currentColor"/><rect x="2" y="2" width="16" height="8" rx="1.5" fill="currentColor"/><rect x="24" y="4" width="2" height="4" rx="1" fill="currentColor"/></svg>
+        </span>
+      </div>
+
+      {% block contenu %}{% endblock %}
+
+      <div class="barre-accueil" aria-hidden="true"></div>
+    </div>
+  </div>
+  <script src="{{ url_for('static', filename='heure.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

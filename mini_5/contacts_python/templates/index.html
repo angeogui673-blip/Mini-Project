@@ -1,25 +1,6 @@
-<!doctype html>
-<html lang="fr">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
-  <meta name="theme-color" content="#FFFFFF">
-  <title>Mes contacts</title>
-  <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="{{ url_for('static', filename='telephone.css') }}">
-</head>
-<body>
-  <div class="telephone">
-    <div class="ecran">
-      <div class="barre-etat" aria-hidden="true">
-        <span id="heure"></span>
-        <span class="camera"></span>
-        <span class="icones">
-          <svg viewBox="0 0 18 12" width="18" height="12"><path d="M1 11h2V8H1zm4 0h2V6H5zm4 0h2V3H9zm4 0h2V1h-2z" fill="currentColor"/></svg>
-          <svg viewBox="0 0 26 12" width="26" height="12"><rect x=".5" y=".5" width="22" height="11" rx="3" fill="none" stroke="currentColor"/><rect x="2" y="2" width="16" height="8" rx="1.5" fill="currentColor"/><rect x="24" y="4" width="2" height="4" rx="1" fill="currentColor"/></svg>
-        </span>
-      </div>
+{% extends "base.html" %}
 
+{% block contenu %}
       <div class="vues">
         <main id="vue-liste" class="vue">
           <header class="entete">
@@ -27,9 +8,18 @@
               <h1>Contacts</h1>
               <p id="compteur" class="compteur"></p>
             </div>
-            <button id="bouton-nouveau" class="bouton-rond" type="button" aria-label="Nouveau contact">
-              <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
-            </button>
+            <div class="entete-actions">
+              {% if protege %}
+              <form method="post" action="{{ url_for('deconnexion') }}">
+                <button class="bouton-rond bouton-discret" type="submit" aria-label="Verrouiller">
+                  <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M7 10V7a5 5 0 0 1 10 0v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="4.5" y="10" width="15" height="11" rx="2.5" fill="currentColor"/></svg>
+                </button>
+              </form>
+              {% endif %}
+              <button id="bouton-nouveau" class="bouton-rond" type="button" aria-label="Nouveau contact">
+                <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+              </button>
+            </div>
           </header>
 
           <div class="recherche">
@@ -91,11 +81,9 @@
           <button id="bouton-garder" class="bouton-plein" type="button">Garder</button>
         </section>
       </div>
+{% endblock %}
 
-      <div class="barre-accueil" aria-hidden="true"></div>
-    </div>
-  </div>
-  <noscript><p class="sans-script">Cette page a besoin de JavaScript pour afficher vos contacts.</p></noscript>
-  <script src="{{ url_for('static', filename='telephone.js') }}"></script>
-</body>
-</html>
+{% block scripts %}
+<noscript><p class="sans-script">Cette page a besoin de JavaScript pour afficher vos contacts.</p></noscript>
+<script src="{{ url_for('static', filename='telephone.js') }}"></script>
+{% endblock %}

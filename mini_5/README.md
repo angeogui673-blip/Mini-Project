@@ -39,7 +39,27 @@ Sur une fenêtre large, l'application s'affiche dans un téléphone dessiné. Su
 
 Les boutons **Appeler** et **Message** ouvrent des liens `tel:` et `sms:`. Ils ouvrent l'application de téléphone ou de messages de l'appareil, si celui-ci en a une : sur un ordinateur, il peut donc ne rien se passer. Le site n'appelle jamais lui-même.
 
-Le site n'écoute que sur cet ordinateur et n'a pas de mot de passe. Ne l'ouvrez pas au réseau tel quel : toute personne connectée pourrait lire et supprimer vos contacts.
+### L'ouvrir sur votre téléphone
+
+Le téléphone et l'ordinateur doivent être sur le même Wi-Fi.
+
+1. Choisissez un mot de passe. Seule son empreinte est enregistrée, dans `acces.json`, qui reste hors du dépôt :
+   ```
+   python app.py --mot-de-passe
+   ```
+2. Lancez le site en mode réseau. Le terminal affiche l'adresse à ouvrir sur le téléphone :
+   ```
+   python app.py --reseau
+   ```
+3. Si Windows le demande, autorisez Python sur les réseaux **privés** uniquement. Si le téléphone n'arrive pas à se connecter, vérifiez dans **Paramètres > Réseau et Internet > Wi-Fi** que votre réseau est bien en profil **Privé**.
+
+Limites de ce mode :
+
+- **Rien n'est chiffré.** Le site utilise HTTP et non HTTPS : le mot de passe et les contacts circulent en clair sur le Wi-Fi, comme le message du client-serveur TCP du mini-projet 3. Utilisez ce mode uniquement sur un Wi-Fi de confiance, jamais sur un réseau public, et arrêtez le site avec `Ctrl+C` après usage.
+- **C'est un serveur de développement.** Il convient à un essai sur votre réseau, pas à une mise en ligne sur Internet.
+- **Après cinq erreurs,** un appareil doit attendre cinq minutes avant de réessayer.
+
+Sans `--reseau`, le site n'écoute que sur cet ordinateur. Une fois le mot de passe choisi, il est demandé dans les deux cas. Le bouton en forme de cadenas verrouille l'appareil utilisé. Sinon, la connexion dure sept jours, et changer le mot de passe déconnecte tous les appareils.
 
 ## Les contacts enregistrés
 
@@ -53,6 +73,7 @@ La fenêtre et le site peuvent être ouverts en même temps : chacun relit le fi
 | --- | --- | --- |
 | Interface de bureau | `interface.py`, `theme.py` | Afficher la fenêtre et réagir aux événements |
 | Interface web | `app.py`, `templates/`, `static/` | Répondre aux requêtes et afficher le téléphone |
+| Accès au site | `acces.py` | Vérifier le mot de passe et bloquer les essais répétés |
 | Logique | `contacts.py` | Vérifier une saisie, refuser les doublons, trier, chercher |
 | Données | `stockage.py` | Lire et écrire le fichier JSON |
 
@@ -97,7 +118,7 @@ Utilisateur ──────────────────────�
 | Rôle | Ce qu'il fait | Dans JavaFX | Dans le site web |
 | --- | --- | --- | --- |
 | Modèle | Détient les contacts et leurs règles | `Contact.java`, `CarnetContacts.java` | `contacts.py`, `stockage.py` |
-| Vue | Montre l'interface | `contacts.fxml` | `index.html`, `telephone.css` |
+| Vue | Montre l'interface | `contacts.fxml` | `templates/`, `telephone.css` |
 | Contrôleur | Réagit aux actions | `ContactsController.java` | `app.py`, `telephone.js` |
 
 Dans la fenêtre Tkinter, la classe `FenetreContacts` joue à la fois la vue et le contrôleur. JavaFX les sépare vraiment : on pourrait redessiner `contacts.fxml` sans modifier une ligne de Java, tant que les `fx:id` et `onAction` restent les mêmes.
@@ -132,9 +153,13 @@ Sous Linux, remplacez le `;` par `:` et les `\` par `/`.
 | `contacts_python/interface.py` | La fenêtre Tkinter |
 | `contacts_python/theme.py` | Les couleurs et le style de la fenêtre |
 | `contacts_python/app.py` | Le site Flask et ses routes |
-| `contacts_python/templates/index.html` | La structure de la page du téléphone |
+| `contacts_python/acces.py` | Le mot de passe du site et le blocage des essais |
+| `contacts_python/templates/base.html` | Le boîtier du téléphone, commun aux deux pages |
+| `contacts_python/templates/index.html` | L'application de contacts |
+| `contacts_python/templates/connexion.html` | L'écran verrouillé |
 | `contacts_python/static/telephone.css` | L'apparence du téléphone |
 | `contacts_python/static/telephone.js` | Les réactions de la page aux gestes |
+| `contacts_python/static/heure.js` | L'heure et la date affichées |
 | `contacts_python/test_contacts.py` | Les tests de la logique, des données et de la fenêtre |
 | `contacts_python/test_app.py` | Les tests du site |
 | `contacts_python/requirements.txt` | La version de Flask à installer |

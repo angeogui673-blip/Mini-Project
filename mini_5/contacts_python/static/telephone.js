@@ -26,8 +26,15 @@ function creer(balise, classe, texte) {
   return noeud;
 }
 
+// Fait une requête. Si la connexion a expiré, retourne à l'écran verrouillé.
+async function appeler(adresse, options) {
+  const reponse = await fetch(adresse, options);
+  if (reponse.status === 401) window.location.href = "/connexion";
+  return reponse;
+}
+
 async function envoyer(adresse, contact) {
-  const reponse = await fetch(adresse, {
+  const reponse = await appeler(adresse, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(contact),
@@ -136,7 +143,7 @@ async function chargerContacts() {
   const recherche = element("champ-recherche").value.trim();
 
   try {
-    const reponse = await fetch(`/api/contacts?q=${encodeURIComponent(recherche)}`);
+    const reponse = await appeler(`/api/contacts?q=${encodeURIComponent(recherche)}`);
     const donnees = await reponse.json();
     if (demande !== etat.derniereDemande) return;
     if (!reponse.ok) {
@@ -278,15 +285,6 @@ async function confirmerSuppression() {
   }
 }
 
-// --- L'heure de la barre du haut ---
-
-function afficherHeure() {
-  element("heure").textContent = new Date().toLocaleTimeString("fr-FR", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 // --- Le démarrage ---
 
 function quandTouche(evenement) {
@@ -308,8 +306,6 @@ function demarrer() {
   element("voile").addEventListener("click", fermerFeuille);
   document.addEventListener("keydown", quandTouche);
 
-  afficherHeure();
-  setInterval(afficherHeure, 20000);
   chargerContacts();
 }
 
