@@ -87,6 +87,10 @@ Deux observations :
 3. Lancez le serveur, puis le client, envoyez un message et tapez `quitter`.
 4. Faites un clic droit sur un paquet, puis **Suivre > Flux TCP** pour lire la conversation.
 
+## Dans un grand réseau Cisco
+
+Le dossier [`packet_tracer`](packet_tracer/GUIDE.md) reproduit l'échange dans Cisco Packet Tracer : un réseau de deux sites, avec deux routeurs, DHCP et DNS. Une passerelle relie ensuite le réseau simulé au vrai `serveur.py`.
+
 ## Tests
 
 ```
@@ -102,4 +106,8 @@ Les tests ouvrent de vraies connexions TCP sur cet ordinateur, sur un port libre
 | `serveur.py` | Le serveur TCP |
 | `client.py` | Le client TCP |
 | `test_reseau.py` | Les tests |
+| `packet_tracer/GUIDE.md` | Construction du réseau Cisco, étape par étape |
+| `packet_tracer/serveur_pt.py` | Serveur à coller dans Packet Tracer |
+| `packet_tracer/client_pt.py` | Client à coller dans Packet Tracer |
+| `packet_tracer/passerelle_pt.py` | Relie le réseau simulé au vrai `serveur.py` |
 | `.gitignore` | Exclut du dépôt les fichiers générés par Python |
