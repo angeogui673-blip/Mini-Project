@@ -1,0 +1,15 @@
+{# La couverture d'un livre. La version dessinée reste dessous : elle apparaît si l'image ne charge pas. #}
+{% macro couverture(livre, id_livre, grande=False) %}
+  <span class="couverture teinte-{{ id_livre % 6 }}" style="view-transition-name: livre-{{ id_livre }}">
+    <span class="couverture-dessinee">
+      <b>{{ livre.titre }}</b>
+      <small>{{ livre.auteur }}</small>
+    </span>
+    {% if livre.couverture %}
+      {# Open Library propose la même image en plus grand : -L au lieu de -M. #}
+      <img src="{{ livre.couverture|replace('-M.jpg', '-L.jpg') if grande else livre.couverture }}"
+           alt="" loading="lazy" decoding="async"
+           referrerpolicy="no-referrer" onerror="this.remove()">
+    {% endif %}
+  </span>
+{% endmacro %}

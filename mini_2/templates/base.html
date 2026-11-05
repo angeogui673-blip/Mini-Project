@@ -3,20 +3,26 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block titre %}Catalogue de la bibliothèque{% endblock %}</title>
+  <title>{% block titre %}La bibliothèque{% endblock %}</title>
   <link rel="icon" href="data:,">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=IM+Fell+French+Canon&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IM+Fell+French+Canon&family=Literata:opsz,wght@7..72,400;7..72,700&display=swap">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <header class="entete">
-    <a class="marque" href="{{ url_for('accueil') }}">Catalogue de la bibliothèque</a>
-    {% block bouton_ajout %}<a class="bouton" href="{{ url_for('ajouter') }}">Ajouter un livre</a>{% endblock %}
+  <header class="barre">
+    <a class="marque" href="{{ url_for('accueil') }}">La bibliothèque</a>
+    <nav aria-label="Navigation principale">
+      <a href="{{ url_for('prets') }}">
+        Prêts <span class="compteur">{{ nb_prets.en_cours }}</span>
+        {% if nb_prets.en_retard %}
+          <span class="compteur alerte">{{ nb_prets.en_retard }} en retard</span>
+        {% endif %}
+      </a>
+      <a class="bouton" href="{{ url_for('ajouter') }}">Ajouter un livre</a>
+    </nav>
   </header>
-  <main>
-    {% block contenu %}{% endblock %}
-  </main>
+  {% block contenu %}{% endblock %}
 </body>
 </html>

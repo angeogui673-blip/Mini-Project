@@ -2,10 +2,12 @@
 
 import sqlite3
 import unicodedata
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
+from urllib.parse import urlsplit
 
 FICHIER_BASE = Path(__file__).parent / "catalogue.db"
+DUREE_PRET_JOURS = 21
 
 CREATION_TABLES = """
 CREATE TABLE IF NOT EXISTS categories (
@@ -20,10 +22,24 @@ CREATE TABLE IF NOT EXISTS livres (
     auteur TEXT NOT NULL,
     annee INTEGER NOT NULL,
     resume TEXT NOT NULL DEFAULT '',
+    couverture TEXT NOT NULL DEFAULT '',
     cote TEXT NOT NULL,
-    disponible INTEGER NOT NULL DEFAULT 1 CHECK (disponible IN (0, 1)),
     categorie_id INTEGER NOT NULL REFERENCES categories (id)
 );
+
+-- Un prêt est en cours tant que date_rendu est vide. Les anciens prêts forment l'historique.
+CREATE TABLE IF NOT EXISTS prets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    livre_id INTEGER NOT NULL REFERENCES livres (id) ON DELETE CASCADE,
+    emprunteur TEXT NOT NULL,
+    date_pret TEXT NOT NULL,
+    date_retour TEXT NOT NULL,
+    date_rendu TEXT
+);
+
+-- La base elle-même refuse deux prêts en cours pour le même livre.
+CREATE UNIQUE INDEX IF NOT EXISTS un_seul_pret_en_cours
+    ON prets (livre_id) WHERE date_rendu IS NULL;
 """
 
 # Le code commence la cote du livre, comme sur l'étiquette collée au dos.
@@ -46,11 +62,13 @@ CATEGORIES = [
 # Ces mots font partie du nom de famille : « Le Clézio » donne LEC, « La Fontaine » donne LAF.
 PARTICULES = {"le", "la", "du"}
 
-# Une ligne de livre, avec le nom de sa catégorie grâce à la jointure entre les deux tables.
+# Une ligne de livre, avec sa catégorie et son prêt en cours.
+# LEFT JOIN garde les livres sans prêt : emprunteur et date_retour sont alors vides.
 SELECT_LIVRES = """
-    SELECT livres.*, categories.nom AS categorie
+    SELECT livres.*, categories.nom AS categorie, prets.emprunteur, prets.date_retour
     FROM livres
     JOIN categories ON categories.id = livres.categorie_id
+    LEFT JOIN prets ON prets.livre_id = livres.id AND prets.date_rendu IS NULL
 """
 TRI_LIVRES = "ORDER BY sans_accents(categories.nom), livres.cote, sans_accents(livres.titre), livres.id"
 
@@ -111,7 +129,7 @@ def calculer_cote(code, auteur):
     return f"{code} {lettres[:3].upper()}"
 
 
-def valider_livre(connexion, titre, auteur, annee, categorie_id, resume, disponible):
+def valider_livre(connexion, titre, auteur, annee, categorie_id, resume, couverture):
     """Nettoie les valeurs d'un livre et les retourne. Lève ValueError si l'une est invalide."""
     titre = titre.strip()
     auteur = auteur.strip()
@@ -136,13 +154,18 @@ def valider_livre(connexion, titre, auteur, annee, categorie_id, resume, disponi
     if categorie is None:
         raise ValueError("Choisissez une catégorie dans la liste.")
 
+    couverture = couverture.strip()
+    adresse = urlsplit(couverture)
+    if couverture and (adresse.scheme not in ("http", "https") or not adresse.netloc):
+        raise ValueError("L'adresse de la couverture doit commencer par https://.")
+
     return {
         "titre": titre,
         "auteur": auteur,
         "annee": annee,
         "resume": resume.strip(),
+        "couverture": couverture,
         "cote": calculer_cote(categorie["code"], auteur),
-        "disponible": int(bool(disponible)),
         "categorie_id": categorie["id"],
     }
 
@@ -151,14 +174,14 @@ def valider_livre(connexion, titre, auteur, annee, categorie_id, resume, disponi
 # Les « ? » et les « :nom » laissent SQLite insérer les valeurs :
 # une saisie ne peut jamais devenir du SQL.
 
-def ajouter_livre(connexion, titre, auteur, annee, categorie_id, resume="", disponible=True):
+def ajouter_livre(connexion, titre, auteur, annee, categorie_id, resume="", couverture=""):
     """Create : ajoute un livre et retourne son id."""
-    valeurs = valider_livre(connexion, titre, auteur, annee, categorie_id, resume, disponible)
+    valeurs = valider_livre(connexion, titre, auteur, annee, categorie_id, resume, couverture)
     with connexion:  # valide l'écriture si tout va bien, l'annule en cas d'erreur
         curseur = connexion.execute(
             """
-            INSERT INTO livres (titre, auteur, annee, resume, cote, disponible, categorie_id)
-            VALUES (:titre, :auteur, :annee, :resume, :cote, :disponible, :categorie_id)
+            INSERT INTO livres (titre, auteur, annee, resume, couverture, cote, categorie_id)
+            VALUES (:titre, :auteur, :annee, :resume, :couverture, :cote, :categorie_id)
             """,
             valeurs,
         )
@@ -197,15 +220,15 @@ def trouver_livre(connexion, id_livre):
     return connexion.execute(f"{SELECT_LIVRES} WHERE livres.id = ?", (id_livre,)).fetchone()
 
 
-def modifier_livre(connexion, id_livre, titre, auteur, annee, categorie_id, resume="", disponible=True):
+def modifier_livre(connexion, id_livre, titre, auteur, annee, categorie_id, resume="", couverture=""):
     """Update : remplace les valeurs d'un livre. Retourne False si l'id n'existe pas."""
-    valeurs = valider_livre(connexion, titre, auteur, annee, categorie_id, resume, disponible)
+    valeurs = valider_livre(connexion, titre, auteur, annee, categorie_id, resume, couverture)
     with connexion:
         curseur = connexion.execute(
             """
             UPDATE livres
             SET titre = :titre, auteur = :auteur, annee = :annee, resume = :resume,
-                cote = :cote, disponible = :disponible, categorie_id = :categorie_id
+                couverture = :couverture, cote = :cote, categorie_id = :categorie_id
             WHERE id = :id
             """,
             {**valeurs, "id": id_livre},
@@ -213,17 +236,108 @@ def modifier_livre(connexion, id_livre, titre, auteur, annee, categorie_id, resu
     return curseur.rowcount > 0
 
 
-def changer_disponibilite(connexion, id_livre):
-    """Update : un livre disponible devient emprunté, et inversement. Retourne False si l'id n'existe pas."""
+def supprimer_livre(connexion, id_livre):
+    """Delete : retire un livre et son historique. Retourne False si l'id n'existe pas.
+
+    Lève ValueError si le livre est encore en prêt.
+    """
+    livre = trouver_livre(connexion, id_livre)
+    if livre is None:
+        return False
+    if livre["emprunteur"] is not None:
+        raise ValueError("Ce livre est en prêt : enregistrez son retour avant de le retirer.")
+    with connexion:
+        connexion.execute("DELETE FROM livres WHERE id = ?", (id_livre,))
+    return True
+
+
+# --- Les prêts ---
+
+def date_retour_par_defaut(aujourdhui=None):
+    """Retourne la date de retour proposée pour un nouveau prêt."""
+    return (aujourdhui or date.today()) + timedelta(days=DUREE_PRET_JOURS)
+
+
+def jours_de_retard(date_retour, aujourdhui=None):
+    """Retourne le nombre de jours de retard d'une date de retour, ou 0 si elle n'est pas dépassée."""
+    retard = (aujourdhui or date.today()) - date.fromisoformat(date_retour)
+    return max(retard.days, 0)
+
+
+def preter_livre(connexion, id_livre, emprunteur, date_retour, aujourdhui=None):
+    """Enregistre un prêt et retourne son id. Lève ValueError si le prêt n'est pas possible."""
+    aujourdhui = aujourdhui or date.today()
+    emprunteur = emprunteur.strip()
+    if not emprunteur:
+        raise ValueError("Indiquez le nom de l'emprunteur.")
+
+    try:
+        retour = date.fromisoformat(date_retour.strip())
+    except ValueError:
+        raise ValueError("La date de retour doit être une date valide.")
+    if retour < aujourdhui:
+        raise ValueError("La date de retour ne peut pas être déjà passée.")
+
+    if trouver_livre(connexion, id_livre) is None:
+        raise ValueError("Ce livre n'existe pas.")
+
+    try:
+        with connexion:
+            curseur = connexion.execute(
+                "INSERT INTO prets (livre_id, emprunteur, date_pret, date_retour) VALUES (?, ?, ?, ?)",
+                (id_livre, emprunteur, aujourdhui.isoformat(), retour.isoformat()),
+            )
+    except sqlite3.IntegrityError:  # refusé par l'index un_seul_pret_en_cours
+        raise ValueError("Ce livre est déjà en prêt.")
+    return curseur.lastrowid
+
+
+def rendre_livre(connexion, id_livre, aujourdhui=None):
+    """Enregistre le retour du livre. Retourne False s'il n'était pas en prêt."""
+    aujourdhui = aujourdhui or date.today()
     with connexion:
         curseur = connexion.execute(
-            "UPDATE livres SET disponible = 1 - disponible WHERE id = ?", (id_livre,)
+            "UPDATE prets SET date_rendu = ? WHERE livre_id = ? AND date_rendu IS NULL",
+            (aujourdhui.isoformat(), id_livre),
         )
     return curseur.rowcount > 0
 
 
-def supprimer_livre(connexion, id_livre):
-    """Delete : retire un livre. Retourne False si l'id n'existe pas."""
-    with connexion:
-        curseur = connexion.execute("DELETE FROM livres WHERE id = ?", (id_livre,))
-    return curseur.rowcount > 0
+def lister_prets_en_cours(connexion):
+    """Retourne les prêts en cours, les retours les plus urgents en premier."""
+    return connexion.execute(
+        """
+        SELECT prets.*, livres.id AS id_livre, livres.titre, livres.auteur, livres.cote, livres.couverture
+        FROM prets
+        JOIN livres ON livres.id = prets.livre_id
+        WHERE prets.date_rendu IS NULL
+        ORDER BY prets.date_retour, sans_accents(livres.titre)
+        """
+    ).fetchall()
+
+
+def compter_prets(connexion, aujourdhui=None):
+    """Retourne le nombre de prêts en cours et le nombre de prêts en retard."""
+    aujourdhui = aujourdhui or date.today()
+    ligne = connexion.execute(
+        """
+        SELECT COUNT(*) AS en_cours, COALESCE(SUM(date_retour < ?), 0) AS en_retard
+        FROM prets
+        WHERE date_rendu IS NULL
+        """,
+        (aujourdhui.isoformat(),),
+    ).fetchone()
+    return {"en_cours": ligne["en_cours"], "en_retard": ligne["en_retard"]}
+
+
+def historique_prets(connexion, id_livre, limite=5):
+    """Retourne les derniers prêts terminés d'un livre, du plus récent au plus ancien."""
+    return connexion.execute(
+        """
+        SELECT * FROM prets
+        WHERE livre_id = ? AND date_rendu IS NOT NULL
+        ORDER BY date_rendu DESC, id DESC
+        LIMIT ?
+        """,
+        (id_livre, limite),
+    ).fetchall()

@@ -1,14 +1,16 @@
-"""Tests des fonctions du catalogue et du fonds de livres, sur une base temporaire."""
+"""Tests des fonctions du catalogue, des prêts et du fonds de livres, sur une base temporaire."""
 
 import json
 import sqlite3
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import catalogue as c
 from charger_livres import FICHIER_LIVRES, charger_livres
+
+AUJOURDHUI = date(2026, 6, 15)
 
 
 class BaseTemporaire(unittest.TestCase):
@@ -28,7 +30,9 @@ class BaseTemporaire(unittest.TestCase):
 
 class TestAjouter(BaseTemporaire):
     def test_ajoute_et_nettoie_les_valeurs(self):
-        id_livre = c.ajouter_livre(self.base, "  Germinal ", " Émile Zola ", " 1885 ", self.roman, " Une grève. ")
+        id_livre = c.ajouter_livre(
+            self.base, "  Germinal ", " Émile Zola ", " 1885 ", self.roman, " Une grève. ", " https://exemple.org/g.jpg "
+        )
         self.assertEqual(
             dict(c.trouver_livre(self.base, id_livre)),
             {
@@ -37,10 +41,12 @@ class TestAjouter(BaseTemporaire):
                 "auteur": "Émile Zola",
                 "annee": 1885,
                 "resume": "Une grève.",
+                "couverture": "https://exemple.org/g.jpg",
                 "cote": "R ZOL",
-                "disponible": 1,
                 "categorie_id": self.roman,
                 "categorie": "Roman",
+                "emprunteur": None,
+                "date_retour": None,
             },
         )
 
@@ -71,17 +77,16 @@ class TestAjouter(BaseTemporaire):
                     c.ajouter_livre(self.base, titre, auteur, annee, categorie)
         self.assertEqual(c.lister_livres(self.base), [])
 
+    def test_adresse_de_couverture_invalide_refusee(self):
+        for adresse in ("image.jpg", "javascript:alert(1)", "ftp://exemple.org/a.jpg", "https://"):
+            with self.subTest(adresse=adresse):
+                with self.assertRaises(ValueError):
+                    c.ajouter_livre(self.base, "A", "B", 2000, self.roman, couverture=adresse)
+        self.assertEqual(c.lister_livres(self.base), [])
+
     def test_annee_suivante_acceptee_pour_un_livre_a_paraitre(self):
         id_livre = c.ajouter_livre(self.base, "À paraître", "Auteur", date.today().year + 1, self.roman)
         self.assertIsNotNone(c.trouver_livre(self.base, id_livre))
-
-    def test_la_base_refuse_elle_meme_une_disponibilite_invalide(self):
-        with self.assertRaises(sqlite3.IntegrityError):
-            self.base.execute(
-                "INSERT INTO livres (titre, auteur, annee, cote, disponible, categorie_id)"
-                " VALUES ('A', 'B', 2000, 'R B', 5, ?)",
-                (self.roman,),
-            )
 
     def test_la_base_refuse_elle_meme_une_categorie_inconnue(self):
         with self.assertRaises(sqlite3.IntegrityError):
@@ -195,6 +200,12 @@ class TestInjection(BaseTemporaire):
         self.assertEqual(c.trouver_livre(self.base, id_livre)["titre"], titre)
         self.assertEqual(len(c.lister_livres(self.base)), 1)
 
+    def test_un_nom_demprunteur_malveillant_est_enregistre_comme_du_texte(self):
+        id_livre = c.ajouter_livre(self.base, "A", "B", 2000, self.roman)
+        nom = "'); DROP TABLE prets; --"
+        c.preter_livre(self.base, id_livre, nom, "2999-01-01")
+        self.assertEqual(c.trouver_livre(self.base, id_livre)["emprunteur"], nom)
+
 
 class TestModifierEtSupprimer(BaseTemporaire):
     def setUp(self):
@@ -204,12 +215,12 @@ class TestModifierEtSupprimer(BaseTemporaire):
 
     def test_modifier_ne_change_que_ce_livre(self):
         self.assertTrue(
-            c.modifier_livre(self.base, self.id_livre, "Germinal", "Zola", 1885, self.roman, "Une grève.", False)
+            c.modifier_livre(self.base, self.id_livre, "Germinal", "Zola", 1885, self.roman, "Une grève.", "https://a.org/g.jpg")
         )
         livre = c.trouver_livre(self.base, self.id_livre)
         self.assertEqual(livre["auteur"], "Zola")
         self.assertEqual(livre["resume"], "Une grève.")
-        self.assertEqual(livre["disponible"], 0)
+        self.assertEqual(livre["couverture"], "https://a.org/g.jpg")
         self.assertEqual(c.trouver_livre(self.base, self.autre)["auteur"], "Émile Zola")
 
     def test_changer_de_categorie_ou_dauteur_recalcule_la_cote(self):
@@ -226,16 +237,6 @@ class TestModifierEtSupprimer(BaseTemporaire):
     def test_modifier_id_inconnu(self):
         self.assertFalse(c.modifier_livre(self.base, 99, "A", "B", 2000, self.roman))
 
-    def test_preter_puis_rendre(self):
-        self.assertTrue(c.changer_disponibilite(self.base, self.id_livre))
-        self.assertEqual(c.trouver_livre(self.base, self.id_livre)["disponible"], 0)
-        self.assertEqual(c.trouver_livre(self.base, self.autre)["disponible"], 1)
-        self.assertTrue(c.changer_disponibilite(self.base, self.id_livre))
-        self.assertEqual(c.trouver_livre(self.base, self.id_livre)["disponible"], 1)
-
-    def test_preter_id_inconnu(self):
-        self.assertFalse(c.changer_disponibilite(self.base, 99))
-
     def test_supprimer_ne_retire_que_ce_livre(self):
         self.assertTrue(c.supprimer_livre(self.base, self.id_livre))
         self.assertIsNone(c.trouver_livre(self.base, self.id_livre))
@@ -248,6 +249,146 @@ class TestModifierEtSupprimer(BaseTemporaire):
         c.supprimer_livre(self.base, self.autre)
         nouveau = c.ajouter_livre(self.base, "Thérèse Raquin", "Émile Zola", 1867, self.roman)
         self.assertGreater(nouveau, self.autre)
+
+
+class TestPrets(BaseTemporaire):
+    def setUp(self):
+        super().setUp()
+        self.id_livre = c.ajouter_livre(self.base, "Germinal", "Émile Zola", 1885, self.roman)
+        self.autre = c.ajouter_livre(self.base, "Nana", "Émile Zola", 1880, self.roman)
+
+    def preter(self, id_livre=None, emprunteur="Awa Diop", date_retour="2026-07-06"):
+        return c.preter_livre(self.base, id_livre or self.id_livre, emprunteur, date_retour, AUJOURDHUI)
+
+    def test_un_livre_sans_pret_est_disponible(self):
+        self.assertIsNone(c.trouver_livre(self.base, self.id_livre)["emprunteur"])
+
+    def test_preter_enregistre_lemprunteur_et_les_dates(self):
+        self.preter(emprunteur="  Awa Diop ")
+        livre = c.trouver_livre(self.base, self.id_livre)
+        self.assertEqual(livre["emprunteur"], "Awa Diop")
+        self.assertEqual(livre["date_retour"], "2026-07-06")
+        pret = c.lister_prets_en_cours(self.base)[0]
+        self.assertEqual(pret["date_pret"], "2026-06-15")
+        self.assertIsNone(pret["date_rendu"])
+
+    def test_un_pret_ne_concerne_que_ce_livre(self):
+        self.preter()
+        self.assertIsNone(c.trouver_livre(self.base, self.autre)["emprunteur"])
+
+    def test_preter_un_livre_deja_prete_est_refuse(self):
+        self.preter()
+        with self.assertRaisesRegex(ValueError, "déjà en prêt"):
+            self.preter(emprunteur="Marc")
+        self.assertEqual(c.trouver_livre(self.base, self.id_livre)["emprunteur"], "Awa Diop")
+
+    def test_la_base_refuse_elle_meme_deux_prets_en_cours(self):
+        self.preter()
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.base.execute(
+                "INSERT INTO prets (livre_id, emprunteur, date_pret, date_retour)"
+                " VALUES (?, 'Marc', '2026-01-01', '2026-02-01')",
+                (self.id_livre,),
+            )
+
+    def test_saisies_de_pret_invalides_refusees(self):
+        cas = [
+            ("   ", "2026-07-06"),
+            ("Awa", ""),
+            ("Awa", "bientôt"),
+            ("Awa", "2026-02-30"),
+            ("Awa", "2026-06-14"),  # hier
+        ]
+        for emprunteur, date_retour in cas:
+            with self.subTest(emprunteur=emprunteur, date_retour=date_retour):
+                with self.assertRaises(ValueError):
+                    self.preter(emprunteur=emprunteur, date_retour=date_retour)
+        self.assertEqual(c.lister_prets_en_cours(self.base), [])
+
+    def test_retour_prevu_aujourdhui_accepte(self):
+        self.preter(date_retour="2026-06-15")
+        self.assertEqual(len(c.lister_prets_en_cours(self.base)), 1)
+
+    def test_preter_un_livre_inconnu_est_refuse(self):
+        with self.assertRaisesRegex(ValueError, "n'existe pas"):
+            self.preter(id_livre=99)
+
+    def test_rendre_rend_le_livre_disponible_et_garde_lhistorique(self):
+        self.preter()
+        self.assertTrue(c.rendre_livre(self.base, self.id_livre, date(2026, 6, 20)))
+        self.assertIsNone(c.trouver_livre(self.base, self.id_livre)["emprunteur"])
+        self.assertEqual(c.lister_prets_en_cours(self.base), [])
+        historique = c.historique_prets(self.base, self.id_livre)
+        self.assertEqual(historique[0]["emprunteur"], "Awa Diop")
+        self.assertEqual(historique[0]["date_rendu"], "2026-06-20")
+
+    def test_rendre_un_livre_qui_nest_pas_en_pret(self):
+        self.assertFalse(c.rendre_livre(self.base, self.id_livre))
+
+    def test_rendre_deux_fois_ne_change_pas_la_date(self):
+        self.preter()
+        c.rendre_livre(self.base, self.id_livre, date(2026, 6, 20))
+        self.assertFalse(c.rendre_livre(self.base, self.id_livre, date(2026, 6, 25)))
+        self.assertEqual(c.historique_prets(self.base, self.id_livre)[0]["date_rendu"], "2026-06-20")
+
+    def test_un_livre_rendu_peut_etre_prete_de_nouveau(self):
+        self.preter()
+        c.rendre_livre(self.base, self.id_livre, AUJOURDHUI)
+        self.preter(emprunteur="Marc")
+        self.assertEqual(c.trouver_livre(self.base, self.id_livre)["emprunteur"], "Marc")
+        self.assertEqual(len(c.historique_prets(self.base, self.id_livre)), 1)
+
+    def test_historique_du_plus_recent_au_plus_ancien_et_limite(self):
+        for numero in range(7):
+            self.preter(emprunteur=f"Lecteur {numero}")
+            c.rendre_livre(self.base, self.id_livre, AUJOURDHUI + timedelta(days=numero))
+        noms = [pret["emprunteur"] for pret in c.historique_prets(self.base, self.id_livre)]
+        self.assertEqual(noms, ["Lecteur 6", "Lecteur 5", "Lecteur 4", "Lecteur 3", "Lecteur 2"])
+
+    def test_prets_tries_du_plus_urgent_au_moins_urgent(self):
+        self.preter(date_retour="2026-08-01")
+        self.preter(id_livre=self.autre, date_retour="2026-07-01")
+        titres = [pret["titre"] for pret in c.lister_prets_en_cours(self.base)]
+        self.assertEqual(titres, ["Nana", "Germinal"])
+
+    def test_jours_de_retard(self):
+        self.assertEqual(c.jours_de_retard("2026-06-16", AUJOURDHUI), 0)
+        self.assertEqual(c.jours_de_retard("2026-06-15", AUJOURDHUI), 0)
+        self.assertEqual(c.jours_de_retard("2026-06-14", AUJOURDHUI), 1)
+        self.assertEqual(c.jours_de_retard("2026-05-15", AUJOURDHUI), 31)
+
+    def test_compter_prets_en_cours_et_en_retard(self):
+        self.assertEqual(c.compter_prets(self.base, AUJOURDHUI), {"en_cours": 0, "en_retard": 0})
+        self.preter(date_retour="2026-06-15")
+        self.preter(id_livre=self.autre, date_retour="2026-06-20")
+        self.assertEqual(c.compter_prets(self.base, AUJOURDHUI), {"en_cours": 2, "en_retard": 0})
+        self.assertEqual(c.compter_prets(self.base, date(2026, 6, 16)), {"en_cours": 2, "en_retard": 1})
+        self.assertEqual(c.compter_prets(self.base, date(2026, 7, 1)), {"en_cours": 2, "en_retard": 2})
+
+    def test_un_livre_rendu_nest_plus_compte(self):
+        self.preter(date_retour="2026-06-20")
+        c.rendre_livre(self.base, self.id_livre, AUJOURDHUI)
+        self.assertEqual(c.compter_prets(self.base, date(2026, 7, 1)), {"en_cours": 0, "en_retard": 0})
+
+    def test_date_de_retour_par_defaut(self):
+        self.assertEqual(c.date_retour_par_defaut(AUJOURDHUI), date(2026, 7, 6))
+
+    def test_un_livre_en_pret_ne_peut_pas_etre_retire(self):
+        self.preter()
+        with self.assertRaisesRegex(ValueError, "en prêt"):
+            c.supprimer_livre(self.base, self.id_livre)
+        self.assertIsNotNone(c.trouver_livre(self.base, self.id_livre))
+
+    def test_retirer_un_livre_efface_aussi_son_historique(self):
+        self.preter()
+        c.rendre_livre(self.base, self.id_livre, AUJOURDHUI)
+        self.assertTrue(c.supprimer_livre(self.base, self.id_livre))
+        self.assertEqual(self.base.execute("SELECT COUNT(*) FROM prets").fetchone()[0], 0)
+
+    def test_modifier_un_livre_garde_son_pret(self):
+        self.preter()
+        c.modifier_livre(self.base, self.id_livre, "Germinal (édition révisée)", "Émile Zola", 1885, self.roman)
+        self.assertEqual(c.trouver_livre(self.base, self.id_livre)["emprunteur"], "Awa Diop")
 
 
 class TestFondsDeLivres(BaseTemporaire):
@@ -268,9 +409,9 @@ class TestFondsDeLivres(BaseTemporaire):
     def test_relancer_le_chargement_garde_les_modifications_du_bibliothecaire(self):
         charger_livres(self.base)
         livre = c.rechercher_livres(self.base, "Germinal")[0]
-        c.changer_disponibilite(self.base, livre["id"])
+        c.preter_livre(self.base, livre["id"], "Awa", "2999-01-01")
         charger_livres(self.base)
-        self.assertEqual(c.trouver_livre(self.base, livre["id"])["disponible"], 0)
+        self.assertEqual(c.trouver_livre(self.base, livre["id"])["emprunteur"], "Awa")
 
     def test_chaque_categorie_contient_des_livres(self):
         charger_livres(self.base)
@@ -282,6 +423,13 @@ class TestFondsDeLivres(BaseTemporaire):
         self.assertTrue(all(livre["resume"].strip() for livre in self.fonds))
         paires = [(livre["titre"], livre["auteur"]) for livre in self.fonds]
         self.assertEqual(len(paires), len(set(paires)))
+
+    def test_les_couvertures_viennent_dopen_library_et_sont_toutes_differentes(self):
+        adresses = [livre["couverture"] for livre in self.fonds if "couverture" in livre]
+        self.assertTrue(adresses)
+        self.assertEqual(len(adresses), len(set(adresses)))
+        for adresse in adresses:
+            self.assertRegex(adresse, r"^https://covers\.openlibrary\.org/b/id/\d+-M\.jpg\?default=false$")
 
     def test_exemples_de_cotes_du_fonds(self):
         charger_livres(self.base)

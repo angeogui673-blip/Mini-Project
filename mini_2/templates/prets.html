@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% from "_couverture.html" import couverture %}
+
+{% block titre %}Prêts en cours : La bibliothèque{% endblock %}
+
+{% block contenu %}
+  <main class="page-simple">
+    <h1>Prêts en cours</h1>
+
+    {% if prets %}
+      <p class="message">
+        {{ nb_prets.en_cours }} prêt{{ 's' if nb_prets.en_cours > 1 }} en cours{% if nb_prets.en_retard %},
+        dont {{ nb_prets.en_retard }} en retard{% endif %}.
+      </p>
+      <ul class="liste-prets">
+        {% for pret in prets %}
+          {% set retard = jours_de_retard(pret.date_retour) %}
+          <li class="{{ 'ligne-retard' if retard }}">
+            <a class="pret-couverture" href="{{ url_for('fiche', id_livre=pret.id_livre) }}" aria-label="Voir la fiche : {{ pret.titre }}">
+              {{ couverture(pret, pret.id_livre) }}
+            </a>
+            <div class="pret-livre">
+              <a href="{{ url_for('fiche', id_livre=pret.id_livre) }}"><b>{{ pret.titre }}</b></a>
+              <span>{{ pret.auteur }}</span>
+            </div>
+            <div class="pret-details">
+              <span>Emprunté par <b>{{ pret.emprunteur }}</b></span>
+              <span>Retour prévu le {{ pret.date_retour|date_fr }}</span>
+              {% if retard %}
+                <span class="etat retard">En retard de {{ retard }} jour{{ 's' if retard > 1 }}</span>
+              {% endif %}
+            </div>
+            <form method="post" action="{{ url_for('rendre', id_livre=pret.id_livre) }}">
+              <button class="bouton" aria-label="Enregistrer le retour : {{ pret.titre }}">Enregistrer le retour</button>
+            </form>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="message">
+        Aucun livre n'est en prêt. Ouvrez la fiche d'un livre pour le prêter.
+      </p>
+      <a class="bouton" href="{{ url_for('accueil') }}">Parcourir le catalogue</a>
+    {% endif %}
+  </main>
+{% endblock %}

@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% from "_couverture.html" import couverture %}
+
+{% block titre %}{{ livre.titre }} : La bibliothèque{% endblock %}
+
+{% block contenu %}
+  {% set retard = jours_de_retard(livre.date_retour) if livre.emprunteur else 0 %}
+
+  <main class="table">
+    <article class="livre-ouvert">
+      <div class="page page-gauche">
+        {{ couverture(livre, livre.id, grande=True) }}
+        <p class="cote">{{ livre.cote }}</p>
+      </div>
+
+      <div class="page page-droite">
+        <p class="rubrique">{{ livre.categorie }}</p>
+        <h1>{{ livre.titre }}</h1>
+        <p class="auteur">{{ livre.auteur }}, {{ livre.annee }}</p>
+        {% if livre.resume %}<p class="resume">{{ livre.resume }}</p>{% endif %}
+
+        {% if erreur %}
+          <p class="erreur" role="alert">{{ erreur }}</p>
+        {% endif %}
+
+        <section class="bloc-pret">
+          <h2>Prêt</h2>
+          {% if livre.emprunteur %}
+            <p>
+              Emprunté par <b>{{ livre.emprunteur }}</b>,
+              retour prévu le {{ livre.date_retour|date_fr }}.
+            </p>
+            {% if retard %}
+              <p class="etat retard">En retard de {{ retard }} jour{{ 's' if retard > 1 }}</p>
+            {% endif %}
+            <form method="post" action="{{ url_for('rendre', id_livre=livre.id) }}">
+              <button class="bouton">Enregistrer le retour</button>
+            </form>
+          {% else %}
+            <p class="etat disponible">Disponible</p>
+            <form class="formulaire-pret" method="post" action="{{ url_for('preter', id_livre=livre.id) }}">
+              <div>
+                <label for="emprunteur">Emprunteur</label>
+                <input id="emprunteur" name="emprunteur" value="{{ saisie.emprunteur }}" required>
+              </div>
+              <div>
+                <label for="date_retour">Retour prévu</label>
+                <input id="date_retour" name="date_retour" type="date" min="{{ aujourdhui }}"
+                       value="{{ saisie.date_retour or retour_par_defaut }}" required>
+              </div>
+              <button class="bouton">Prêter ce livre</button>
+            </form>
+          {% endif %}
+        </section>
+
+        {% if historique %}
+          <section class="bloc-pret">
+            <h2>Derniers prêts</h2>
+            <ul class="historique">
+              {% for pret in historique %}
+                <li>{{ pret.emprunteur }}, du {{ pret.date_pret|date_fr }} au {{ pret.date_rendu|date_fr }}</li>
+              {% endfor %}
+            </ul>
+          </section>
+        {% endif %}
+
+        <div class="liens-fiche">
+          <a href="{{ url_for('modifier', id_livre=livre.id) }}">Modifier</a>
+          {% if not livre.emprunteur %}
+            <form method="post" action="{{ url_for('supprimer', id_livre=livre.id) }}"
+                  onsubmit="return confirm('Retirer ce livre du catalogue ?')">
+              <button class="danger">Retirer du catalogue</button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+    </article>
+  </main>
+{% endblock %}

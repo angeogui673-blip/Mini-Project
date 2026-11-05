@@ -1,83 +1,73 @@
 {% extends "base.html" %}
+{% from "_couverture.html" import couverture %}
 
-{% block titre %}{{ categorie.nom ~ " : " if categorie }}Catalogue de la bibliothèque{% endblock %}
+{% block titre %}{{ categorie.nom ~ " : " if categorie }}La bibliothèque{% endblock %}
 
 {% block contenu %}
-  <h1 class="invisible">Liste des livres</h1>
-
-  <form class="recherche" action="{{ url_for('recherche') }}" role="search">
-    <label for="q">Chercher un titre, un auteur ou une cote</label>
-    <div class="ligne-recherche">
-      <input id="q" name="q" type="search" value="{{ recherche }}">
+  <div class="hero {{ 'hero-accueil' if not categorie and not recherche }}">
+    <h1>{{ categorie.nom if categorie else ("Résultats de recherche" if recherche else "Trouvez votre prochain livre") }}</h1>
+    <form class="recherche" action="{{ url_for('recherche') }}" role="search">
+      <label class="invisible" for="q">Chercher un titre, un auteur ou une cote</label>
+      <input id="q" name="q" type="search" value="{{ recherche }}" placeholder="Titre, auteur, cote">
       <button>Rechercher</button>
-    </div>
-  </form>
+    </form>
+  </div>
 
-  <nav aria-label="Catégories">
-    <ul class="meuble">
-      <li>
-        <a class="tiroir" href="{{ url_for('accueil') }}"
-           {% if not categorie and not recherche %}aria-current="page"{% endif %}>
-          <span class="etiquette">Tous les livres <small>{{ total }}</small></span>
+  <main>
+    <nav class="rayons-nav" aria-label="Catégories">
+      <a href="{{ url_for('accueil') }}" {% if not categorie and not recherche %}aria-current="page"{% endif %}>
+        Tous les livres <small>{{ total }}</small>
+      </a>
+      {% for rayon in categories %}
+        <a href="{{ url_for('categorie', categorie_id=rayon.id) }}"
+           {% if categorie and categorie.id == rayon.id %}aria-current="page"{% endif %}>
+          {{ rayon.nom }} <small>{{ rayon.nb }}</small>
         </a>
-      </li>
-      {% for tiroir in categories %}
-        <li>
-          <a class="tiroir" href="{{ url_for('categorie', categorie_id=tiroir.id) }}"
-             {% if categorie and categorie.id == tiroir.id %}aria-current="page"{% endif %}>
-            <span class="etiquette">{{ tiroir.nom }} <small>{{ tiroir.nb }}</small></span>
-          </a>
-        </li>
       {% endfor %}
-    </ul>
-  </nav>
+    </nav>
 
-  {% if recherche %}
-    <p class="message">
-      {% if livres %}
-        {{ livres|length }} résultat{{ 's' if livres|length > 1 }} pour « {{ recherche }} ».
-      {% else %}
-        Aucun livre ne correspond à « {{ recherche }} ». Vérifiez l'orthographe ou cherchez un seul mot.
-      {% endif %}
-      <a href="{{ url_for('accueil') }}">Voir tout le catalogue</a>
-    </p>
-  {% elif categorie and not livres %}
-    <p class="message">Aucun livre dans cette catégorie pour le moment.</p>
-  {% elif not livres %}
-    <p class="message">Le catalogue est vide. Ajoutez le premier livre pour commencer.</p>
-  {% endif %}
+    {% if recherche %}
+      <p class="message">
+        {% if livres %}
+          {{ livres|length }} résultat{{ 's' if livres|length > 1 }} pour « {{ recherche }} ».
+        {% else %}
+          Aucun livre ne correspond à « {{ recherche }} ». Vérifiez l'orthographe ou cherchez un seul mot.
+        {% endif %}
+        <a href="{{ url_for('accueil') }}">Voir tout le catalogue</a>
+      </p>
+    {% elif categorie and not livres %}
+      <p class="message">Aucun livre dans cette catégorie pour le moment.</p>
+    {% elif not livres %}
+      <p class="message">Le catalogue est vide. Ajoutez le premier livre pour commencer.</p>
+    {% endif %}
 
-  {% for nom, livres_du_rayon in rayons %}
-    <section class="rayon">
-      <h2>{{ nom }} <small>{{ livres_du_rayon|length }} livre{{ 's' if livres_du_rayon|length > 1 }}</small></h2>
-      <ul class="fiches">
-        {% for livre in livres_du_rayon %}
-          <li class="fiche" id="livre-{{ livre.id }}">
-            <span class="cote">{{ livre.cote }}</span>
-            <h3>{{ livre.titre }}</h3>
-            <p>{{ livre.auteur }}, {{ livre.annee }}</p>
-            {% if livre.resume %}<p class="resume">{{ livre.resume }}</p>{% endif %}
-            <div class="bas-fiche">
-              {% if livre.disponible %}
-                <span class="tampon">Disponible</span>
-              {% else %}
-                <span class="tampon emprunte">Emprunté</span>
-              {% endif %}
-              <div class="actions">
-                <form method="post" action="{{ url_for('pret', id_livre=livre.id) }}">
-                  {% set action = "Prêter" if livre.disponible else "Rendre" %}
-                  <button class="pret" aria-label="{{ action }} : {{ livre.titre }}">{{ action }}</button>
-                </form>
-                <a href="{{ url_for('modifier', id_livre=livre.id) }}" aria-label="Modifier : {{ livre.titre }}">Modifier</a>
-                <form method="post" action="{{ url_for('supprimer', id_livre=livre.id) }}"
-                      onsubmit="return confirm('Retirer ce livre du catalogue ?')">
-                  <button class="danger" aria-label="Retirer : {{ livre.titre }}">Retirer</button>
-                </form>
-              </div>
-            </div>
-          </li>
-        {% endfor %}
-      </ul>
-    </section>
-  {% endfor %}
+    {% for nom, livres_du_rayon in rayons %}
+      <section class="rayon">
+        <h2>{{ nom }} <small>{{ livres_du_rayon|length }} livre{{ 's' if livres_du_rayon|length > 1 }}</small></h2>
+        <ul class="etagere {{ 'etagere-ouverte' if categorie or recherche }}">
+          {% for livre in livres_du_rayon %}
+            <li>
+              <a class="livre" href="{{ url_for('fiche', id_livre=livre.id) }}">
+                <span class="presentoir">
+                  {{ couverture(livre, livre.id) }}
+                </span>
+                <span class="legende">
+                  <b>{{ livre.titre }}</b>
+                  <span>{{ livre.auteur }}</span>
+                  <span class="cote">{{ livre.cote }}</span>
+                  {% if livre.emprunteur %}
+                    {% if jours_de_retard(livre.date_retour) %}
+                      <span class="etat retard">En retard</span>
+                    {% else %}
+                      <span class="etat emprunte">Emprunté</span>
+                    {% endif %}
+                  {% endif %}
+                </span>
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+      </section>
+    {% endfor %}
+  </main>
 {% endblock %}

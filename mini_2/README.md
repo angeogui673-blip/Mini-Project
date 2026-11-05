@@ -1,10 +1,10 @@
-# Catalogue de livres
+# Catalogue de la bibliothèque
 
-Mini-application web locale pour une petite bibliothèque scolaire, dont le catalogue était difficile à tenir à jour dans un simple fichier. Le bibliothécaire peut ajouter, rechercher, modifier, prêter et retirer des livres depuis son navigateur. Les livres sont rangés par catégorie et portent une cote, comme dans une vraie bibliothèque.
+Mini-application web locale pour une petite bibliothèque scolaire, dont le catalogue était difficile à tenir à jour dans un simple fichier. Le bibliothécaire peut ajouter, rechercher, modifier et retirer des livres, et suivre les prêts avec l'emprunteur, la date de retour et les retards.
 
 Le catalogue peut se remplir avec un fonds de 95 livres réels, de Zola à *Dune*, répartis dans 12 catégories.
 
-Notions pratiquées : routes et requêtes HTTP, SQL de base (CRUD), jointures entre tables, clé étrangère, gabarits HTML, formulaires, tests du serveur.
+Notions pratiquées : routes et requêtes HTTP, SQL de base (CRUD), jointures entre tables, clés étrangères, gabarits HTML, formulaires, transitions CSS, tests du serveur.
 
 ## Lancement
 
@@ -30,11 +30,13 @@ Ouvrez ensuite <http://127.0.0.1:5000> dans le navigateur. Le site n'est accessi
 
 ## Utilisation
 
-- **Parcourir :** chaque tiroir du meuble ouvre une catégorie. « Tous les livres » affiche tous les rayons.
+- **Parcourir :** les livres sont présentés sur des étagères, rangés par catégorie. Un clic sur une couverture ouvre sa fiche.
 - **Rechercher :** le champ de recherche cherche dans le titre, l'auteur et la cote, sans tenir compte des majuscules ni des accents. « moliere » trouve Molière et « P HUG » trouve *Les Contemplations*.
-- **Prêter et rendre :** un clic sur une fiche change le tampon « Disponible » ou « Emprunté ».
-- **Ajouter et modifier :** le formulaire demande le titre, l'auteur, l'année, la catégorie et un résumé facultatif. La cote se calcule toute seule.
-- **Retirer :** le bouton « Retirer » supprime le livre après confirmation.
+- **Prêter :** sur la fiche d'un livre disponible, indiquez l'emprunteur et la date de retour, proposée 21 jours plus tard.
+- **Suivre les prêts :** la page « Prêts » liste les prêts en cours, les plus urgents d'abord, et signale les retards. Le nombre de prêts et de retards reste visible en haut de chaque page.
+- **Enregistrer un retour :** le bouton se trouve sur la fiche et sur la page « Prêts ». Les anciens prêts restent dans l'historique du livre.
+- **Ajouter et modifier :** le formulaire demande le titre, l'auteur, l'année, la catégorie, et en option un résumé et l'adresse d'une image de couverture. La cote se calcule toute seule.
+- **Retirer :** le bouton de la fiche supprime le livre après confirmation. Un livre en prêt ne peut pas être retiré.
 
 ## Les cotes
 
@@ -53,6 +55,8 @@ La cote indique où ranger un livre sur les rayons. Elle réunit le code de la c
 
 Dans `livres.json`, l'année est celle de la première publication de l'œuvre dans sa langue d'origine, y compris pour les livres traduits. Pour le théâtre, c'est l'année de la création sur scène. Pour une œuvre parue en plusieurs tomes, c'est l'année du premier.
 
+Les couvertures de 64 livres sont des images chargées depuis [Open Library](https://openlibrary.org) : elles nécessitent une connexion internet et ne sont pas stockées dans ce dépôt. Sans image, ou sans connexion, le site dessine une couverture avec le titre et l'auteur.
+
 ## Routes
 
 | Méthode | Adresse | Rôle |
@@ -60,14 +64,17 @@ Dans `livres.json`, l'année est celle de la première publication de l'œuvre d
 | GET | `/` | Tous les livres, rangés par catégorie |
 | GET | `/categorie/<id>` | Livres d'une seule catégorie |
 | GET | `/recherche?q=...` | Livres correspondant à la recherche |
+| GET | `/livre/<id>` | Fiche d'un livre, avec son prêt et son historique |
 | GET, POST | `/ajouter` | Affiche le formulaire, puis enregistre le livre |
 | GET, POST | `/modifier/<id>` | Affiche le formulaire prérempli, puis enregistre les changements |
-| POST | `/pret/<id>` | Prête le livre, ou le rend s'il est emprunté |
 | POST | `/supprimer/<id>` | Retire le livre |
+| GET | `/prets` | Prêts en cours et retards |
+| POST | `/livre/<id>/preter` | Enregistre un prêt |
+| POST | `/livre/<id>/rendre` | Enregistre un retour |
 
 ## Base de données
 
-Deux tables, reliées par une clé étrangère : chaque livre appartient à une catégorie.
+Trois tables : chaque livre appartient à une catégorie, et chaque prêt concerne un livre.
 
 | Table `categories` | Contenu |
 | --- | --- |
@@ -82,9 +89,22 @@ Deux tables, reliées par une clé étrangère : chaque livre appartient à une 
 | `auteur` | Auteur du livre |
 | `annee` | Année de publication |
 | `resume` | Résumé, facultatif |
+| `couverture` | Adresse de l'image de couverture, facultative |
 | `cote` | Cote calculée à partir de la catégorie et de l'auteur |
-| `disponible` | 1 si le livre est disponible, 0 s'il est emprunté |
 | `categorie_id` | Identifiant de la catégorie |
+
+| Table `prets` | Contenu |
+| --- | --- |
+| `id` | Identifiant unique |
+| `livre_id` | Identifiant du livre |
+| `emprunteur` | Nom de l'emprunteur |
+| `date_pret` | Date du prêt |
+| `date_retour` | Date de retour prévue |
+| `date_rendu` | Date du retour réel, vide tant que le prêt est en cours |
+
+Un livre est disponible quand il n'a aucun prêt en cours. Un index unique empêche la base d'enregistrer deux prêts en cours pour le même livre.
+
+Les noms des emprunteurs sont des données personnelles : ils restent dans `catalogue.db`, exclu du dépôt par `.gitignore`.
 
 ## Tests
 
@@ -103,10 +123,14 @@ Les tests utilisent une base temporaire et ne touchent jamais à `catalogue.db`.
 | `livres.json` | Le fonds de livres réels |
 | `charger_livres.py` | Ajoute les livres de `livres.json` au catalogue |
 | `templates/base.html` | Structure commune aux pages |
-| `templates/liste.html` | Page de la liste, des catégories et de la recherche |
+| `templates/_couverture.html` | Affichage d'une couverture, réutilisé sur plusieurs pages |
+| `templates/liste.html` | Étagères, catégories et recherche |
+| `templates/fiche.html` | Fiche d'un livre, présentée comme un livre ouvert |
+| `templates/prets.html` | Prêts en cours et retards |
 | `templates/formulaire.html` | Formulaire d'ajout et de modification |
-| `static/style.css` | Apparence des pages |
-| `test_catalogue.py` | Tests des fonctions SQL et du fonds de livres |
+| `static/style.css` | Apparence des pages et transitions entre elles |
+| `static/bibliotheque.svg` | Dessin de la salle de lecture |
+| `test_catalogue.py` | Tests des fonctions SQL, des prêts et du fonds de livres |
 | `test_app.py` | Tests des routes, avec le client de test de Flask |
 | `requirements.txt` | Dépendance du projet (Flask) |
 | `.gitignore` | Exclut du dépôt la base de données, l'environnement virtuel et les fichiers générés par Python |

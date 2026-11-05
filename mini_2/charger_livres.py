@@ -32,6 +32,7 @@ def charger_livres(connexion, chemin=FICHIER_LIVRES):
             livre["annee"],
             categories[livre["categorie"]],
             livre["resume"],
+            livre.get("couverture", ""),
         )
         ajoutes += 1
     return ajoutes
