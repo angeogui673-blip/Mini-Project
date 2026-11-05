@@ -1,0 +1,225 @@
+/* La page imite une feuille de cahier à grands carreaux.
+   Tout est calé sur --ligne pour que le texte reste posé sur les lignes. */
+:root {
+  --ligne: 2rem;
+  --marge: 7rem;
+  --papier: #fcfdff;
+  --reglure-forte: #a9b8e6;
+  --reglure-fine: #e3e8f7;
+  --trait-marge: #e8505f;
+  --encre: #1c2a7d;
+  --stylo-rouge: #c4122f;
+  --gris: #5a6178;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--encre);
+  font: 1rem/var(--ligne) "Atkinson Hyperlegible", system-ui, sans-serif;
+
+  /* Trois images superposées : la marge rouge, les lignes fortes, les lignes fines. */
+  background-color: var(--papier);
+  background-image:
+    linear-gradient(var(--trait-marge), var(--trait-marge)),
+    linear-gradient(var(--reglure-forte) 1px, transparent 1px),
+    linear-gradient(var(--reglure-fine) 1px, transparent 1px);
+  background-size: 2px 100%, 100% var(--ligne), 100% calc(var(--ligne) / 4);
+  background-position: var(--marge) 0, 0 1.45rem, 0 1.45rem;
+  background-repeat: no-repeat, repeat, repeat;
+}
+
+main {
+  max-width: 60rem;
+  padding: var(--ligne) 1rem calc(var(--ligne) * 2) 0;
+}
+
+/* Tout ce qui n'est pas une tâche s'écrit à droite de la marge. */
+h1,
+.ajout,
+.message {
+  margin: 0 0 var(--ligne) calc(var(--marge) + 1rem);
+}
+
+h1 {
+  font: 400 2rem/calc(var(--ligne) * 2) "Playwrite FR Moderne", cursive;
+}
+
+.message {
+  margin-bottom: 0;
+}
+
+.erreur {
+  color: var(--stylo-rouge);
+  font-weight: 700;
+}
+
+/* --- Formulaire d'ajout --- */
+
+.ajout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  column-gap: 1rem;
+}
+
+.champ-titre {
+  flex: 1 1 16rem;
+}
+
+label {
+  display: block;
+  font-weight: 700;
+}
+
+input,
+button {
+  height: var(--ligne);
+  font: inherit;
+  line-height: 1;
+}
+
+input {
+  width: 100%;
+  padding: 0 0.5rem;
+  color: inherit;
+  background: #fff;
+  border: 1px solid var(--encre);
+  border-radius: 2px;
+}
+
+button {
+  padding: 0 0.5rem;
+  color: var(--encre);
+  background: none;
+  border: 0;
+  border-radius: 2px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+button:hover {
+  background: var(--reglure-fine);
+}
+
+button.principal {
+  padding: 0 1.25rem;
+  color: #fff;
+  font-weight: 700;
+  background: var(--encre);
+  text-decoration: none;
+}
+
+button.principal:hover {
+  background: #2c3da3;
+}
+
+button.danger {
+  color: var(--stylo-rouge);
+}
+
+input:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--encre);
+  outline-offset: 2px;
+}
+
+/* --- Liste des tâches : la date dans la marge, le reste sur la ligne --- */
+
+.taches {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.taches li {
+  display: grid;
+  grid-template-columns: var(--marge) 1fr auto;
+  column-gap: 1rem;
+}
+
+.date {
+  padding-right: 0.5rem;
+  text-align: right;
+}
+
+.texte {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.etat {
+  margin-left: 0.5rem;
+  white-space: nowrap;
+}
+
+/* Le retard est annoté au stylo rouge, comme une correction. */
+.en-retard .date,
+.en-retard .etat {
+  color: var(--stylo-rouge);
+}
+
+.en-retard .etat {
+  font: 0.8rem/var(--ligne) "Playwrite FR Moderne", cursive;
+}
+
+/* Une tâche terminée est barrée. */
+.terminee .date,
+.terminee .texte {
+  color: var(--gris);
+}
+
+.terminee .titre {
+  text-decoration: line-through;
+}
+
+/* --- Téléphone : marge plus étroite, actions sous le titre --- */
+
+@media (max-width: 40rem) {
+  :root {
+    --marge: 5.5rem;
+  }
+
+  h1 {
+    font-size: 1.5rem;
+  }
+
+  /* 0,5 ligne au-dessus du bouton + 1,5 ligne en dessous : on retombe sur la réglure. */
+  .ajout {
+    margin-bottom: calc(var(--ligne) * 1.5);
+  }
+
+  .ajout .champ {
+    flex: 1 1 100%;
+  }
+
+  .ajout .principal {
+    flex: 1;
+    margin-top: calc(var(--ligne) / 4);
+  }
+
+  .taches li {
+    grid-template-columns: var(--marge) 1fr;
+  }
+
+  .date {
+    font-size: 0.9rem;
+    padding-right: 0.25rem;
+  }
+
+  .actions {
+    grid-column: 2;
+    margin-left: -0.5rem;
+  }
+}
